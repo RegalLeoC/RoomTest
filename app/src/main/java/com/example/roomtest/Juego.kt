@@ -1,11 +1,13 @@
 package com.example.roomtest
 
+import android.content.DialogInterface
 import  android.content.Intent
 import android.os.Bundle
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -782,6 +784,28 @@ class Juego : AppCompatActivity() {
         startActivity(intent)
         finish()
     }
+
+
+    override fun onBackPressed() {
+        super.onBackPressed()
+        // Build the confirmation dialog
+        val alertDialogBuilder = AlertDialog.Builder(this)
+        alertDialogBuilder.setMessage("Are you sure you want to leave?")
+            .setCancelable(false)
+            .setPositiveButton("Yes", DialogInterface.OnClickListener { dialog, id ->
+                // Finish the activity if the user confirms
+                finish()
+            })
+            .setNegativeButton("No", DialogInterface.OnClickListener { dialog, id ->
+                // Dismiss the dialog if the user cancels
+                dialog.cancel()
+            })
+
+        // Create and show the dialog
+        val alertDialog = alertDialogBuilder.create()
+        alertDialog.show()
+    }
+
 
 
 }
