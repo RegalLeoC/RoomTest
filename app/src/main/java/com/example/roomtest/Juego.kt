@@ -76,28 +76,34 @@ class Juego : AppCompatActivity() {
 
 
 
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_juego)
 
-        // DB Stuff - start
 
+        // Creacion de base de datos
         db = MyAppDatabase.getDatabase(applicationContext)
+        questions = mutableListOf()
 
+        // Creacion de Id unica del juego
         uniqueId = generateUniqueId()
 
         lifecycleScope.launch(Dispatchers.IO) {
 
+            // Se crea variables de progress
 
             gameId = generateRandomGameId()
             activeUserId = getActiveUserId()
             settingsId = activeUserId?.let { getSettingsIdForUser(it) }
             cluesActive = settingsId?.let { areCluesActive(it) }
-
             difficult = settingsId?.let { db.gameDao().getDifficultyById(it) }
 
+            // Se define numero de preguntas de las ajustes
             numberOfQuestions = settingsId?.let { db.gameDao().getNumberOfQuestions(it) } ?: 0
 
+
+            // Se crea instancia de progress
             val progress = Progress(
                 gameId ?: 0, // Provide a default value for gameId if it's null
                 settingsId ?: 0, // Provide a default value for settingsId if it's null
@@ -109,7 +115,7 @@ class Juego : AppCompatActivity() {
 
             db.progressDao().insertProgress(progress)
 
-
+            // Se activa estado de pending game
             activeUserId?.let {
                 updatePendingGameStatus(it)
             }
@@ -118,7 +124,8 @@ class Juego : AppCompatActivity() {
 
         // DB Stuff - end
 
-        //Layout
+
+        // Layout del UI
         buttonContainer = findViewById(R.id.buttonContainer)
         questionTextView = findViewById(R.id.questionTextView)
         topicImageView = findViewById(R.id.topicImageView)
@@ -126,9 +133,10 @@ class Juego : AppCompatActivity() {
         hintTextView = findViewById(R.id.hintTextView)
         hintButton = findViewById(R.id.hintButton)
 
-        //Saving the topics
+        //Agarro los valores de topics de la clase enum topics
         topics = Topics.values()
 
+        // Seleccionamos preguntas al azar
         selectRandomQuestions()
         updateQuestion()
 
@@ -246,36 +254,30 @@ class Juego : AppCompatActivity() {
 
 
 
-
-
-
     private fun updateQuestion() {
         // Establish which question we are on
         val currentQuestion = questions.getOrNull(questionIndex)
 
-        if (currentQuestion != null) {
-            // Look up the topic for the associated pic of the question
-            val currentTopic = topics.find { it.questions.contains(currentQuestion) } ?: Topics.MATHEMATICS
-
-            // Show the topic image
-            topicImageView.setImageResource(currentTopic.imageResourceId)
-
-            // Show the question text
-            questionTextView.text = currentQuestion.text
-
-            // Show the question number
-            val questionNumberText = "${questionIndex + 1}/${questions.size}"
-            questionNumberTextView.text = questionNumberText
-
-            // If it's the first time visiting the question, generate options to choose from
-            if (questionOptions[questionIndex] == null) {
+        if(questionOptions[questionIndex] == null) {
+            for (question in questions){
                 lifecycleScope.launch(Dispatchers.IO) {
-                    val questionId = getQuestionIdByQuestionText(currentQuestion.text ?: "")
-
-                    val options = generateQuestionsOptions(currentQuestion, questionId)
+                    val options = generateQuestionsOptions(question)
                     questionOptions[questionIndex] = options
                 }
             }
+        }
+
+
+        if (currentQuestion != null) {
+            // Look up the topic for the associated pic of the question
+            val currentTopic = topics.find { it.questions.contains(currentQuestion) } ?: Topics.MATHEMATICS
+            // Show the topic image
+            topicImageView.setImageResource(currentTopic.imageResourceId)
+            // Show the question text
+            questionTextView.text = currentQuestion.text
+            // Show the question number
+            val questionNumberText = "${questionIndex + 1}/${questions.size}"
+            questionNumberTextView.text = questionNumberText
 
             // Create buttons based on the generated options
             createButtons(questionOptions[questionIndex] ?: emptyList())
@@ -345,53 +347,46 @@ class Juego : AppCompatActivity() {
 
 
     //Aqui generamos las opciones segun la cantidad (dificultad)
-    private fun generateQuestionsOptions(question: Questions, questionId: Int): MutableList<String> {
-        val options = mutableListOf<String>()
-        options.add(question.correctAnswer)
+    private suspend fun generateQuestionsOptions(question: Questions): List<String> {
+        return withContext(Dispatchers.IO) {
+            val questionId = getQuestionIdByQuestionText(question.text)
+            val options = mutableListOf<String>()
+            options.add(question.correctAnswer)
 
-        var numWrongAnswers = 0;
+            var numWrongAnswers = 0
+            when (difficult) {
+                "Easy" -> numWrongAnswers = 1
+                "Normal" -> numWrongAnswers = 2
+                "Hard" -> numWrongAnswers = 3
+            }
 
-        when (difficult) {
-            "Easy" -> numWrongAnswers = 1
-            "Normal" -> numWrongAnswers = 2
-            "Hard" -> numWrongAnswers = 3
+            val wrongAnswers = question.wrongAnswers.shuffled().take(numWrongAnswers)
+            options.addAll(wrongAnswers)
+            options.shuffle()
+
+            options.forEachIndexed { index, optionText ->
+                val isCorrect = optionText == question.correctAnswer
+                val optionInstance = AnswerOption(
+                    id = generateRandomId(),
+                    uniqueId = uniqueId,
+                    optionText = optionText,
+                    correct = isCorrect,
+                    questionId = questionId ?: 0 // Use the obtained question ID
+                )
+
+                insertAnswerOption(optionInstance)
+            }
+
+            options // Return the list of options
         }
-
-        val wrongAnswers = question.wrongAnswers.shuffled().take(numWrongAnswers)
-        options.addAll(wrongAnswers)
-        options.shuffle()
-
-        options.forEachIndexed { index, optionText ->
-            val isCorrect = optionText == question.correctAnswer
-            val optionInstance = AnswerOption(
-                id = generateRandomId(),
-                uniqueId = uniqueId,
-                optionText = optionText,
-                correct = isCorrect,
-                questionId = questionId
-            )
-
-            insertAnswerOption(optionInstance)
-        }
-
-        return options
     }
 
 
-    private suspend fun getQuestionIdByQuestionText(questionText: String): Int {
 
-
-
+    private suspend fun getQuestionIdByQuestionText(questionText: String): Int? {
         return withContext(Dispatchers.IO) {
-
-            lifecycleScope.launch {
-
-            }
-
-            db.questionDao().getQuestionIdByQuestionText(questionText) ?: error("Question not found")
+            db.questionDao().getQuestionIdByQuestionText(questionText)
         }
-
-
     }
 
 
@@ -735,7 +730,13 @@ class Juego : AppCompatActivity() {
         }
     }
 
+
+
+
     private fun viewResults() {
+
+
+
         // Calculate the final result based on the specified formula
         difficultyMultiplier = when (difficulty) {
             "Fácil" -> 1.0
@@ -772,6 +773,11 @@ class Juego : AppCompatActivity() {
                 // Save the HighScores instance in the database
                 db.highScoresDao().insertHighScores(highScores)
             }
+
+
+            activeUserId?.let { db.progressDao().deleteByUserId(it) }
+            activeUserId?.let { disablePending(it) }
+
         }
 
         // Pass the results to the FinPartida activity
@@ -781,8 +787,16 @@ class Juego : AppCompatActivity() {
         intent.putExtra("FinalResult", finalResult)
         intent.putExtra("difficultyMultiplier", difficultyMultiplier)
 
+
+
+
         startActivity(intent)
         finish()
+    }
+
+
+    suspend fun disablePending(UserId: Int){
+        activeUserId?.let { db.userDao().disablePendingGameStatus(it) }
     }
 
 

@@ -66,7 +66,7 @@ class MainActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
-        buttonPlay = findViewById(R.id.buttonPlay)
+        val buttonPlay = findViewById<Button>(R.id.buttonPlay)
 
         buttonPlay.setOnClickListener {
             checkPendingGame()
@@ -140,7 +140,9 @@ class MainActivity : AppCompatActivity() {
             activeUser?.let { user ->
                 if (user.pendingGame == true) {
                     showResumeGamePrompt(user)
-                } else {
+                }
+                if (user.pendingGame == false){
+                    resetPendingGameStatus()
                     navigateToJuegoActivity()
                 }
             }

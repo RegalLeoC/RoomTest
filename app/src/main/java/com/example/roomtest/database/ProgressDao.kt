@@ -36,6 +36,8 @@ interface ProgressDao {
     @Query("SELECT * FROM Progress WHERE userId = :userId")
     suspend fun getProgressByUserId(userId: Int): Progress?
 
+    @Query("DELETE FROM Progress WHERE userId = :userId")
+    suspend fun deleteByUserId(userId: Int)
 
     // Add other methods for progress-related database operations
 }

@@ -36,6 +36,9 @@ interface UserDao {
     @Query("UPDATE User SET pendingGame = 1 WHERE id = :userId")
     suspend fun updatePendingGameStatus(userId: Int)
 
+    @Query("UPDATE User SET pendingGame = 0 WHERE id = :userId")
+    suspend fun disablePendingGameStatus(userId: Int)
+
 
     @Query("SELECT * FROM User WHERE active = 1 LIMIT 1")
     suspend fun getActiveUser(): User?
